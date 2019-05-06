@@ -67,7 +67,7 @@ describe Lhm do
 
         slave do
           count_all(:users).must_equal(6)
-          select_values('SELECT id FROM users').must_equal([5, 6, 7, 8, 9, 10])
+          select_values('SELECT reference FROM users').must_equal([4, 5, 6, 7, 8, 9])
           table_read(:users).columns['logins'].must_equal({
             :type => 'int(12)',
             :is_nullable => 'YES',
