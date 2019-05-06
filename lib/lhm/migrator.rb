@@ -199,7 +199,7 @@ module Lhm
     end
 
     def execute
-      unless ENV['LHM_RESUME_AT'].present?
+      if ENV['LHM_RESUME_AT'].blank?
         destination_create
         @statements.each do |stmt|
           @connection.execute(tagged(stmt))
