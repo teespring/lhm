@@ -96,7 +96,7 @@ module Lhm
     @@connection ||=
       begin
         raise 'Please call Lhm.setup' unless defined?(ActiveRecord)
-        ActiveRecord::Base.connection
+        Lhm::Connection.new(ActiveRecord::Base.connection)
       end
   end
 

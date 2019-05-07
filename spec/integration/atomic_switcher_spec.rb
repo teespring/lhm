@@ -19,12 +19,40 @@ describe Lhm::AtomicSwitcher do
       @destination = table_create('destination')
       @migration   = Lhm::Migration.new(@origin, @destination)
       Lhm.logger = Logger.new('/dev/null')
-      @connection.execute('SET GLOBAL innodb_lock_wait_timeout=3')
-      @connection.execute('SET GLOBAL lock_wait_timeout=3')
     end
 
     after(:each) do
       Thread.abort_on_exception = false
+    end
+
+    it 'should complete without needing retries when it was waiting for locks for less than 14 seconds' do
+      skip 'This spec only works with mysql2' unless defined? Mysql2
+
+      without_verbose do
+        queue = Queue.new
+
+        locking_thread = start_locking_thread(10, queue, "DELETE from #{@destination.name}")
+
+        switching_thread = Thread.new do
+          conn = ar_conn 3306
+          switcher = Lhm::AtomicSwitcher.new(@migration, conn)
+          switcher.retry_sleep_time = 0.2
+          queue.pop
+          switcher.run
+          Thread.current[:retries] = switcher.retries
+        end
+
+        switching_thread.join
+        locking_thread.join
+        assert switching_thread[:retries] == 0, 'The switcher retried'
+
+        slave do
+          table_exists?(@origin).must_equal true
+          table_read(@migration.archive_name).columns.keys.must_include 'origin'
+          table_exists?(@destination).must_equal false
+          table_read(@origin.name).columns.keys.must_include 'destination'
+        end
+      end
     end
 
     it 'should retry on lock wait timeouts' do
@@ -33,7 +61,7 @@ describe Lhm::AtomicSwitcher do
       without_verbose do
         queue = Queue.new
 
-        locking_thread = start_locking_thread(10, queue, "DELETE from #{@destination.name}")
+        locking_thread = start_locking_thread(20, queue, "DELETE from #{@destination.name}")
 
         switching_thread = Thread.new do
           conn = ar_conn 3306
@@ -55,7 +83,7 @@ describe Lhm::AtomicSwitcher do
 
       without_verbose do
         queue = Queue.new
-        locking_thread = start_locking_thread(10, queue, "DELETE from #{@destination.name}")
+        locking_thread = start_locking_thread(50, queue, "DELETE from #{@destination.name}")
 
         switching_thread = Thread.new do
           conn = ar_conn 3306

@@ -82,18 +82,18 @@ describe Lhm::Entangler do
 
     describe 'entanglement with bombarding long running queries on specific tables' do
       before(:each) do
-        Lhm::Entangler.const_set('TABLES_WITH_LONG_QUERIES_OLD', Lhm::Entangler::TABLES_WITH_LONG_QUERIES)
-        Lhm::Entangler.const_set('TABLES_WITH_LONG_QUERIES', 'origin')
+        Lhm::Connection.const_set('TABLES_WITH_LONG_QUERIES_OLD', Lhm::Connection::TABLES_WITH_LONG_QUERIES)
+        Lhm::Connection.const_set('TABLES_WITH_LONG_QUERIES', 'origin')
         execute("insert into origin (common) values ('inserted')")
-        Lhm::Entangler.const_set('LONG_QUERY_TIME_THRESHOLD_OLD', Lhm::Entangler::LONG_QUERY_TIME_THRESHOLD)
-        Lhm::Entangler.const_set('LONG_QUERY_TIME_THRESHOLD', 3)
+        Lhm::Connection.const_set('LONG_QUERY_TIME_THRESHOLD_OLD', Lhm::Connection::LONG_QUERY_TIME_THRESHOLD)
+        Lhm::Connection.const_set('LONG_QUERY_TIME_THRESHOLD', 3)
       end
 
       after(:each) do
-        Lhm::Entangler.const_set('TABLES_WITH_LONG_QUERIES', Lhm::Entangler::TABLES_WITH_LONG_QUERIES_OLD)
-        Lhm::Entangler.const_set('TABLES_WITH_LONG_QUERIES_OLD', nil)
-        Lhm::Entangler.const_set('LONG_QUERY_TIME_THRESHOLD', Lhm::Entangler::LONG_QUERY_TIME_THRESHOLD)
-        Lhm::Entangler.const_set('LONG_QUERY_TIME_THRESHOLD_OLD', nil)
+        Lhm::Connection.const_set('TABLES_WITH_LONG_QUERIES', Lhm::Connection::TABLES_WITH_LONG_QUERIES_OLD)
+        Lhm::Connection.const_set('TABLES_WITH_LONG_QUERIES_OLD', nil)
+        Lhm::Connection.const_set('LONG_QUERY_TIME_THRESHOLD', Lhm::Connection::LONG_QUERY_TIME_THRESHOLD)
+        Lhm::Connection.const_set('LONG_QUERY_TIME_THRESHOLD_OLD', nil)
       end
 
       def long_running_query

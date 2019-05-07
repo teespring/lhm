@@ -5,6 +5,7 @@ require 'yaml'
 require 'active_support'
 $password = YAML.load_file(File.expand_path(File.dirname(__FILE__)) + '/database.yml')['password'] rescue nil
 
+require 'lhm/connection'
 require 'lhm/table'
 require 'lhm/sql_helper'
 
@@ -44,7 +45,7 @@ module IntegrationHelper
       :password => $password,
       :pool     => pool_num || 5
     )
-    ActiveRecord::Base.connection
+    Lhm::Connection.new(ActiveRecord::Base.connection)
   end
 
   def select_one(*args)

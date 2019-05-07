@@ -15,6 +15,7 @@ module Lhm
     include Command
     RETRY_SLEEP_TIME = 10
     MAX_RETRIES = 600
+    SESSION_WAIT_LOCK_TIMEOUT = 14
 
     attr_reader :connection, :retries
     attr_writer :max_retries, :retry_sleep_time
@@ -51,8 +52,10 @@ module Lhm
 
     def execute
       begin
-        statements.each do |stmt|
-          @connection.execute(SqlHelper.tagged(stmt))
+        with_transaction_timeout do
+          statements.each do |stmt|
+            @connection.execute(SqlHelper.tagged(stmt))
+          end
         end
       rescue ActiveRecord::StatementInvalid => error
         if should_retry_exception?(error) && (@retries += 1) < @max_retries
@@ -63,6 +66,16 @@ module Lhm
           raise
         end
       end
+    end
+
+    def with_transaction_timeout
+      lock_wait_timeout = @connection.select_one("SHOW SESSION VARIABLES LIKE 'LOCK_WAIT_TIMEOUT'")["Value"].to_i
+      @connection.execute("SET SESSION LOCK_WAIT_TIMEOUT=#{SESSION_WAIT_LOCK_TIMEOUT}")
+      Lhm.logger.info "Set transaction timeout (SESSION LOCK_WAIT_TIMEOUT) to #{SESSION_WAIT_LOCK_TIMEOUT} seconds."
+      yield
+    ensure
+      @connection.execute("SET SESSION LOCK_WAIT_TIMEOUT=#{lock_wait_timeout}")
+      Lhm.logger.info "Set transaction timeout (SESSION LOCK_WAIT_TIMEOUT) back to #{lock_wait_timeout} seconds."
     end
 
     def should_retry_exception?(error)
