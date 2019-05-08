@@ -6,6 +6,17 @@ module Lhm
     SESSION_WAIT_LOCK_TIMEOUT = LONG_QUERY_TIME_THRESHOLD + INITIALIZATION_DELAY + TRIGGER_MAXIMUM_DURATION
     TABLES_WITH_LONG_QUERIES = %w(designs campaigns campaign_roots tags orders).freeze
 
+    def execute_metadata_locking_statements(statements, table, on_error)
+      kill_long_running_queries_on_origin_table!(table)
+      with_transaction_timeout(on_error: on_error) do
+        statements.each do |statement|
+          kill_long_running_queries_during_transaction(table) do
+            execute(statement)
+          end
+        end
+      end
+    end
+
     def with_transaction_timeout(on_error: nil)
       lock_wait_timeout = ar_connection.execute("SHOW SESSION VARIABLES WHERE VARIABLE_NAME='LOCK_WAIT_TIMEOUT'").to_a.flatten[1].to_i
       ar_connection.execute("SET SESSION LOCK_WAIT_TIMEOUT=#{SESSION_WAIT_LOCK_TIMEOUT}")
@@ -27,7 +38,7 @@ module Lhm
     end
 
     def kill_long_running_queries_on_origin_table!(table, connection: nil)
-      return unless ENV['LHM_KILL_LONG_RUNNING_QUERIES'] == 'true' && special_origin?(table)
+      return unless killing_queries_enabled? && usually_has_long_queries?(table)
 
       connection ||= ar_connection
       long_running_queries(table.name, connection: connection).each do |id, query, duration|
@@ -46,7 +57,7 @@ module Lhm
 
     def kill_long_running_queries_during_transaction(table)
       t = Thread.new do
-        if ENV['LHM_KILL_LONG_RUNNING_QUERIES'] == 'true'
+        if killing_queries_enabled?
           # the goal of this thread is to wait until long running queries that started between
           # #kill_long_running_queries_on_origin_table! and trigger creation
           # to pass the threshold time and then kill them
@@ -60,7 +71,11 @@ module Lhm
       t.join
     end
 
-    def special_origin?(table)
+    def killing_queries_enabled?
+      ENV['LHM_KILL_LONG_RUNNING_QUERIES'] == 'true'
+    end
+
+    def usually_has_long_queries?(table)
       TABLES_WITH_LONG_QUERIES.include? table.name
     end
 

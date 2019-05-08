@@ -80,25 +80,15 @@ module Lhm
     def before
       return if ENV['LHM_RESUME_AT'].present?
 
-      @connection.kill_long_running_queries_on_origin_table!(@origin)
-      @connection.with_transaction_timeout(on_error: ->(message) { error(message) }) do
-        entangle.each do |stmt|
-          @connection.kill_long_running_queries_during_transaction(@origin) do
-            @connection.execute(tagged(stmt))
-          end
-        end
-      end
+      statements_to_entangle_tables = entangle.map { |statement| tagged(statement) }
+
+      @connection.execute_metadata_locking_statements(statements_to_entangle_tables, @origin, ->(message) { error(message) })
     end
 
     def after
-      @connection.kill_long_running_queries_on_origin_table!(@origin)
-      @connection.with_transaction_timeout(on_error: ->(message) { error(message) }) do
-        untangle.each do |stmt|
-          @connection.kill_long_running_queries_during_transaction(@origin) do
-            @connection.execute(tagged(stmt))
-          end
-        end
-      end
+      statements_to_untangle_tables = untangle.map { |statement| tagged(statement) }
+
+      @connection.execute_metadata_locking_statements(statements_to_untangle_tables, @origin, ->(message) { error(message) })
     end
 
     def revert
