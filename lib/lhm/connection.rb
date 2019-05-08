@@ -6,16 +6,20 @@ module Lhm
     SESSION_WAIT_LOCK_TIMEOUT = LONG_QUERY_TIME_THRESHOLD + INITIALIZATION_DELAY + TRIGGER_MAXIMUM_DURATION
     TABLES_WITH_LONG_QUERIES = %w(designs campaigns campaign_roots tags orders).freeze
 
-    def with_transaction_timeout(on_error:)
+    def with_transaction_timeout(on_error: nil)
       lock_wait_timeout = ar_connection.execute("SHOW SESSION VARIABLES WHERE VARIABLE_NAME='LOCK_WAIT_TIMEOUT'").to_a.flatten[1].to_i
       ar_connection.execute("SET SESSION LOCK_WAIT_TIMEOUT=#{SESSION_WAIT_LOCK_TIMEOUT}")
       Lhm.logger.info "Set transaction timeout (SESSION LOCK_WAIT_TIMEOUT) to #{SESSION_WAIT_LOCK_TIMEOUT} seconds."
       yield
     rescue => e
-      if e.message =~ /Lock wait timeout exceeded/
-        on_error.call("Transaction took more than #{SESSION_WAIT_LOCK_TIMEOUT} seconds (SESSION_WAIT_LOCK_TIMEOUT) to run.. ABORT! #{e.message}")
+      if on_error.present?
+        if e.message =~ /Lock wait timeout exceeded/
+          on_error.call("Transaction took more than #{SESSION_WAIT_LOCK_TIMEOUT} seconds (SESSION_WAIT_LOCK_TIMEOUT) to run.. ABORT! #{e.message}")
+        else
+          on_error.call(e.message)
+        end
       else
-        on_error.call(e.message)
+        raise
       end
     ensure
       ar_connection.execute("SET SESSION LOCK_WAIT_TIMEOUT=#{lock_wait_timeout}")
