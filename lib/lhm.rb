@@ -70,12 +70,12 @@ module Lhm
     end.select { |name| name =~ /^lhmt/ }
 
     if run
-      lhm_triggers.each do |trigger|
-        connection.execute("drop trigger if exists #{trigger}")
-      end
-      lhm_tables.each do |table|
-        connection.execute("drop table if exists #{table}")
-      end
+      statements_to_run = []
+      lhm_triggers.each { |trigger| statements_to_run << SqlHelper.tagged("drop trigger if exists #{trigger}") }
+      lhm_tables.each { |table| statements_to_run << SqlHelper.tagged("drop table if exists #{table}") }
+
+      connection.execute_metadata_locking_statements(statements_to_run)
+
       true
     elsif lhm_tables.empty? && lhm_triggers.empty?
       puts 'Everything is clean. Nothing to do.'

@@ -68,5 +68,27 @@ describe Lhm, 'cleanup' do
       Lhm.cleanup(:run).must_equal(true)
       Lhm.cleanup.must_equal(true)
     end
+
+    describe 'when a long query is locking the affected table' do
+      it 'should abort the cleanup due to lock_wait_timeout' do
+        queue = Queue.new
+
+        lhm_tables = @connection.select_values('show tables').select { |name| name =~ /^lhm(a|n)_/ }
+
+        locking_thread = start_locking_thread_with_running_query(table_read(lhm_tables.first), queue)
+
+        begin
+          queue.pop
+          Lhm.cleanup(:run).must_equal(true)
+          Lhm.cleanup.must_equal(true)
+          fail 'no exception was raised'
+        rescue => e
+          assert e.is_a?(ActiveRecord::StatementInvalid)
+          assert_match /Lock wait timeout exceeded/ , e.message
+        ensure
+          locking_thread.join
+        end
+      end
+    end
   end
 end

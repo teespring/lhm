@@ -117,7 +117,8 @@ module IntegrationHelper
         conn.query("BEGIN")
         conn.query("select * from `#{table.name}` for update;")
         queue.push(true)
-        conn.query("select sleep(1000); -- `#{table.name}`")
+        conn.query("select sleep(#{connection.metadata_lock_wait_timeout + 2}); -- `#{table.name}`")
+        conn.query("ROLLBACK")
       rescue Mysql2::Error => error
         raise unless error.message =~ /Lost connection to MySQL server during query/
       end

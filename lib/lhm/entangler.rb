@@ -82,13 +82,21 @@ module Lhm
 
       statements_to_entangle_tables = entangle.map { |statement| tagged(statement) }
 
-      @connection.execute_metadata_locking_statements(statements_to_entangle_tables, @origin, ->(message) { error(message) })
+      @connection.execute_metadata_locking_statements(
+        statements_to_entangle_tables,
+        killing_queries_on: @origin,
+        on_error: ->(message) { error(message) }
+      )
     end
 
     def after
       statements_to_untangle_tables = untangle.map { |statement| tagged(statement) }
 
-      @connection.execute_metadata_locking_statements(statements_to_untangle_tables, @origin, ->(message) { error(message) })
+      @connection.execute_metadata_locking_statements(
+        statements_to_untangle_tables,
+        killing_queries_on: @origin,
+        on_error: ->(message) { error(message) }
+      )
     end
 
     def revert
