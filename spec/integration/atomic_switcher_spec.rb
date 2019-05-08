@@ -25,7 +25,7 @@ describe Lhm::AtomicSwitcher do
       Thread.abort_on_exception = false
     end
 
-    it 'should complete without needing retries when it was waiting for locks for less than current session timeout time' do
+    it 'should complete without needing retries when it was waiting for locks for less than current session timeout' do
       skip 'This spec only works with mysql2' unless defined? Mysql2
 
       without_verbose do

@@ -82,9 +82,8 @@ describe Lhm, 'cleanup' do
           Lhm.cleanup(:run).must_equal(true)
           Lhm.cleanup.must_equal(true)
           fail 'no exception was raised'
-        rescue => e
-          assert e.is_a?(ActiveRecord::StatementInvalid)
-          assert_match /Lock wait timeout exceeded/ , e.message
+        rescue ActiveRecord::StatementInvalid => e
+          assert_match /Lock wait timeout exceeded/, e.message
         ensure
           locking_thread.join
         end

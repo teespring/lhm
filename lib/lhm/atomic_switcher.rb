@@ -15,7 +15,6 @@ module Lhm
     include Command
     RETRY_SLEEP_TIME = 10
     MAX_RETRIES = 600
-    SESSION_WAIT_LOCK_TIMEOUT = 14
 
     attr_reader :connection, :retries
     attr_writer :max_retries, :retry_sleep_time

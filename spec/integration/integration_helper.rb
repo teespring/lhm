@@ -178,7 +178,7 @@ module IntegrationHelper
       show indexes in `#{ table_name }`
      where key_name = '#{ key_name }'
        and non_unique = #{ non_unique }
-                 >)
+    >)
   end
 
   #

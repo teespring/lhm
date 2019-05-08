@@ -33,7 +33,7 @@ module Lhm
       kill_long_running_queries(table) if usually_has_long_queries?(table)
       with_custom_metadata_lock_wait_timeout(on_error: on_error) do
         statements.each do |statement|
-          kill_long_blocking_queries_while_statement_is_running(table) do
+          kill_long_blocking_queries_while_statement_is_blocked(table) do
             execute(statement)
           end
         end
@@ -57,7 +57,7 @@ module Lhm
       Lhm.logger.info "Set transaction timeout (SESSION LOCK_WAIT_TIMEOUT) to #{new_timeout} seconds."
     end
 
-    def kill_long_blocking_queries_while_statement_is_running(table)
+    def kill_long_blocking_queries_while_statement_is_blocked(table)
       t = Thread.new do
         if killing_queries_enabled?
           # the goal of this thread is to kill queries on the table specified that may be blocking metadata_lock
