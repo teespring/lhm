@@ -85,15 +85,11 @@ describe Lhm::Entangler do
         Lhm::Connection.const_set('TABLES_WITH_LONG_QUERIES_OLD', Lhm::Connection::TABLES_WITH_LONG_QUERIES)
         Lhm::Connection.const_set('TABLES_WITH_LONG_QUERIES', 'origin')
         execute("insert into origin (common) values ('inserted')")
-        Lhm::Connection.const_set('LONG_QUERY_TIME_THRESHOLD_OLD', Lhm::Connection::LONG_QUERY_TIME_THRESHOLD)
-        Lhm::Connection.const_set('LONG_QUERY_TIME_THRESHOLD', 3)
       end
 
       after(:each) do
         Lhm::Connection.const_set('TABLES_WITH_LONG_QUERIES', Lhm::Connection::TABLES_WITH_LONG_QUERIES_OLD)
         Lhm::Connection.const_set('TABLES_WITH_LONG_QUERIES_OLD', nil)
-        Lhm::Connection.const_set('LONG_QUERY_TIME_THRESHOLD', Lhm::Connection::LONG_QUERY_TIME_THRESHOLD)
-        Lhm::Connection.const_set('LONG_QUERY_TIME_THRESHOLD_OLD', nil)
       end
 
       def long_running_query

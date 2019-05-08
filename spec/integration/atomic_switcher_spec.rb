@@ -25,13 +25,13 @@ describe Lhm::AtomicSwitcher do
       Thread.abort_on_exception = false
     end
 
-    it 'should complete without needing retries when it was waiting for locks for less than 14 seconds' do
+    it 'should complete without needing retries when it was waiting for locks for less than current session timeout time' do
       skip 'This spec only works with mysql2' unless defined? Mysql2
 
       without_verbose do
         queue = Queue.new
 
-        locking_thread = start_locking_thread(10, queue, "DELETE from #{@destination.name}")
+        locking_thread = start_locking_thread(@connection.metadata_lock_wait_timeout - 2, queue, "DELETE from #{@destination.name}")
 
         switching_thread = Thread.new do
           conn = ar_conn 3306
@@ -83,7 +83,7 @@ describe Lhm::AtomicSwitcher do
           end
 
           switching_thread.join
-          locking_thread.kill
+          locking_thread.join
           assert switching_thread[:retries] == 0, 'The switcher retried'
 
           slave do
@@ -102,12 +102,13 @@ describe Lhm::AtomicSwitcher do
       without_verbose do
         queue = Queue.new
 
-        locking_thread = start_locking_thread(20, queue, "DELETE from #{@destination.name}")
+        locking_thread = start_locking_thread(@connection.metadata_lock_wait_timeout + 1, queue, "DELETE from #{@destination.name}")
 
         switching_thread = Thread.new do
           conn = ar_conn 3306
           switcher = Lhm::AtomicSwitcher.new(@migration, conn)
-          switcher.retry_sleep_time = 0.2
+          switcher.max_retries = 2
+          switcher.retry_sleep_time = 0
           queue.pop
           switcher.run
           Thread.current[:retries] = switcher.retries
@@ -124,7 +125,7 @@ describe Lhm::AtomicSwitcher do
 
       without_verbose do
         queue = Queue.new
-        locking_thread = start_locking_thread(50, queue, "DELETE from #{@destination.name}")
+        locking_thread = start_locking_thread(@connection.metadata_lock_wait_timeout * 10, queue, "DELETE from #{@destination.name}")
 
         switching_thread = Thread.new do
           conn = ar_conn 3306

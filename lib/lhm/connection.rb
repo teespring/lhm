@@ -1,10 +1,19 @@
 module Lhm
   class Connection < SimpleDelegator
-    LONG_QUERY_TIME_THRESHOLD = 10
-    INITIALIZATION_DELAY = 2
-    TRIGGER_MAXIMUM_DURATION = 2
-    SESSION_WAIT_LOCK_TIMEOUT = LONG_QUERY_TIME_THRESHOLD + INITIALIZATION_DELAY + TRIGGER_MAXIMUM_DURATION
     TABLES_WITH_LONG_QUERIES = %w(designs campaigns campaign_roots tags orders).freeze
+
+    attr_reader :long_query_threshold, :statement_initialization_delay, :max_statement_duration
+
+    def initialize(delegate, long_query_threshold: 10, statement_initialization_delay: 2, max_statement_duration: 2)
+      super(delegate)
+      @long_query_threshold = long_query_threshold
+      @statement_initialization_delay = statement_initialization_delay
+      @max_statement_duration = max_statement_duration
+    end
+
+    def metadata_lock_wait_timeout
+      @long_query_threshold + @statement_initialization_delay + @max_statement_duration
+    end
 
     def execute_metadata_locking_statements(statements, table, on_error = nil)
       kill_long_running_queries(table) if usually_has_long_queries?(table)
@@ -36,16 +45,19 @@ module Lhm
       t = Thread.new do
         if killing_queries_enabled?
           # the goal of this thread is to kill queries on the table specified that may be blocking metadata_lock
-          # adquisition. These queries started before the current metadata locking statement started
+          # acquisition. These queries started before the current metadata locking statement started
           # We delay query killing to confirm the statement we want to protect got actually blocked.
-          sleep(LONG_QUERY_TIME_THRESHOLD + INITIALIZATION_DELAY)
+          sleep(@long_query_threshold + @statement_initialization_delay)
           new_connection = ActiveRecord::Base.connection
 
           kill_long_running_queries(table, connection: new_connection)
         end
       end
       yield
-      t.join
+
+      # When we get to this line the statement we are trying to protect is already done. That means we don't need to
+      # wait for the query killing thread to complete nor we need to kill more queries.
+      t.kill
     end
 
     def kill_long_running_queries(table, connection: nil)
@@ -68,12 +80,12 @@ module Lhm
 
     def with_transaction_timeout(on_error: nil)
       lock_wait_timeout = get_session_timeout
-      set_session_timeout(SESSION_WAIT_LOCK_TIMEOUT)
+      set_session_timeout(metadata_lock_wait_timeout)
       yield
     rescue => e
       if on_error.present?
         if e.message =~ /Lock wait timeout exceeded/
-          on_error.call("Transaction took more than #{SESSION_WAIT_LOCK_TIMEOUT} seconds (SESSION_WAIT_LOCK_TIMEOUT) to run.. ABORT! #{e.message}")
+          on_error.call("Transaction took more than #{metadata_lock_wait_timeout} seconds (SESSION_WAIT_LOCK_TIMEOUT) to run.. ABORT! #{e.message}")
         else
           on_error.call(e.message)
         end
@@ -99,7 +111,7 @@ module Lhm
           AND INFO LIKE '%`#{table_name}`%'
           AND INFO NOT LIKE '%large hadron migration%'
           AND INFO NOT LIKE "%INFORMATION_SCHEMA.PROCESSLIST%"
-          AND TIME > '#{LONG_QUERY_TIME_THRESHOLD}'
+          AND TIME > '#{@long_query_threshold}'
       SQL
       result.to_a.compact
     end

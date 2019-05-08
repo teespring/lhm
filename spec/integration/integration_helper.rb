@@ -45,7 +45,12 @@ module IntegrationHelper
       :password => $password,
       :pool     => pool_num || 5
     )
-    Lhm::Connection.new(ActiveRecord::Base.connection)
+    Lhm::Connection.new(
+      ActiveRecord::Base.connection,
+      long_query_threshold: 1,
+      statement_initialization_delay: 2,
+      max_statement_duration: 2
+    )
   end
 
   def select_one(*args)
