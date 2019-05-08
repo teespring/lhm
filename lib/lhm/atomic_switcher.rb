@@ -52,11 +52,8 @@ module Lhm
 
     def execute
       begin
-        @connection.with_transaction_timeout do
-          statements.each do |stmt|
-            @connection.execute(SqlHelper.tagged(stmt))
-          end
-        end
+        tagged_statements = statements.map { |s| SqlHelper.tagged(s) }
+        @connection.execute_metadata_locking_statements(tagged_statements, @origin)
       rescue ActiveRecord::StatementInvalid => error
         if should_retry_exception?(error) && (@retries += 1) < @max_retries
           sleep(@retry_sleep_time)

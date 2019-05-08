@@ -105,6 +105,20 @@ module IntegrationHelper
     end
   end
 
+  def start_locking_thread_with_running_query(table, queue)
+    Thread.new do
+      begin
+        conn = Mysql2::Client.new(host: '127.0.0.1', database: 'lhm', user: 'root', port: 3306)
+        conn.query("BEGIN")
+        conn.query("select * from `#{table.name}` for update;")
+        queue.push(true)
+        conn.query("select sleep(1000); -- `#{table.name}`")
+      rescue Mysql2::Error => error
+        raise unless error.message =~ /Lost connection to MySQL server during query/
+      end
+    end
+  end
+
   #
   # Test Data
   #
@@ -158,7 +172,7 @@ module IntegrationHelper
       show indexes in `#{ table_name }`
      where key_name = '#{ key_name }'
        and non_unique = #{ non_unique }
-    >)
+                 >)
   end
 
   #

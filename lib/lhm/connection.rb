@@ -17,24 +17,6 @@ module Lhm
       end
     end
 
-    def with_transaction_timeout(on_error: nil)
-      lock_wait_timeout = get_session_timeout
-      set_session_timeout(SESSION_WAIT_LOCK_TIMEOUT)
-      yield
-    rescue => e
-      if on_error.present?
-        if e.message =~ /Lock wait timeout exceeded/
-          on_error.call("Transaction took more than #{SESSION_WAIT_LOCK_TIMEOUT} seconds (SESSION_WAIT_LOCK_TIMEOUT) to run.. ABORT! #{e.message}")
-        else
-          on_error.call(e.message)
-        end
-      else
-        raise
-      end
-    ensure
-      set_session_timeout(lock_wait_timeout)
-    end
-
     private
 
     def ar_connection
@@ -84,6 +66,24 @@ module Lhm
       end
     end
 
+    def with_transaction_timeout(on_error: nil)
+      lock_wait_timeout = get_session_timeout
+      set_session_timeout(SESSION_WAIT_LOCK_TIMEOUT)
+      yield
+    rescue => e
+      if on_error.present?
+        if e.message =~ /Lock wait timeout exceeded/
+          on_error.call("Transaction took more than #{SESSION_WAIT_LOCK_TIMEOUT} seconds (SESSION_WAIT_LOCK_TIMEOUT) to run.. ABORT! #{e.message}")
+        else
+          on_error.call(e.message)
+        end
+      else
+        raise
+      end
+    ensure
+      set_session_timeout(lock_wait_timeout)
+    end
+
     def killing_queries_enabled?
       ENV['LHM_KILL_LONG_RUNNING_QUERIES'] == 'true'
     end
@@ -97,7 +97,7 @@ module Lhm
         SELECT ID, INFO, TIME FROM INFORMATION_SCHEMA.PROCESSLIST
         WHERE command <> 'Sleep'
           AND INFO LIKE '%`#{table_name}`%'
-          AND INFO NOT LIKE '%TRIGGER%'
+          AND INFO NOT LIKE '%large hadron migration%'
           AND INFO NOT LIKE "%INFORMATION_SCHEMA.PROCESSLIST%"
           AND TIME > '#{LONG_QUERY_TIME_THRESHOLD}'
       SQL
