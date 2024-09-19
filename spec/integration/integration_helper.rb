@@ -5,6 +5,7 @@ require 'yaml'
 require 'active_support'
 $password = YAML.load_file(File.expand_path(File.dirname(__FILE__)) + '/database.yml')['password'] rescue nil
 
+require 'lhm/connection'
 require 'lhm/table'
 require 'lhm/sql_helper'
 
@@ -44,7 +45,12 @@ module IntegrationHelper
       :password => $password,
       :pool     => pool_num || 5
     )
-    ActiveRecord::Base.connection
+    Lhm::Connection.new(
+      ActiveRecord::Base.connection,
+      long_query_threshold: 1,
+      statement_initialization_delay: 2,
+      max_statement_duration: 2
+    )
   end
 
   def select_one(*args)
@@ -101,6 +107,21 @@ module IntegrationHelper
       queue.push(true)
       sleep(lock_for) # Sleep for log so LHM gives up
       conn.query('ROLLBACK')
+    end
+  end
+
+  def start_locking_thread_with_running_query(table, queue)
+    Thread.new do
+      begin
+        conn = Mysql2::Client.new(host: '127.0.0.1', database: 'lhm', user: 'root', port: 3306)
+        conn.query("BEGIN")
+        conn.query("select * from `#{table.name}` for update;")
+        queue.push(true)
+        conn.query("select sleep(#{connection.metadata_lock_wait_timeout + 2}); -- `#{table.name}`")
+        conn.query("ROLLBACK")
+      rescue Mysql2::Error => error
+        raise unless error.message =~ /Lost connection to MySQL server during query/
+      end
     end
   end
 
